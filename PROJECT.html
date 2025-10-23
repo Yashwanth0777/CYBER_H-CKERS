@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Password Brute-Force Validator (Fixed)</title>
+  <style>
+    /* (kept same styling as original) */
+    html { height: 100%; }
+    body {
+      margin: 0;
+      height: 100%;
+      min-height: 100vh;
+      width: 100%;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: #e6eef8;
+      background: transparent !important;
+      overflow: hidden;
+      display: block;
+    }
+    main.card {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      max-width: 820px;
+      background: rgba(11, 18, 32, 0.85);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+      border: 1px solid rgba(255,255,255,0.03);
+      z-index: 10;
+      width: 90%;
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    input[type="password"], input[type="text"] {
+      flex: 1 1 60%;
+      min-width: 200px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.04);
+      background: rgba(255,255,255,0.03);
+      color: inherit;
+      outline: none;
+      font-size: 15px;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+    input[type="password"]:focus, input[type="text"]:focus {
+      border-color: #6ee7b7;
+      box-shadow: 0 0 8px #6ee7b7;
+    }
+    button {
+      flex: 1 1 auto;
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: 0;
+      cursor: pointer;
+      background: linear-gradient(90deg, #6ee7b7, #4f46e5);
+      color: #02121a;
+      font-weight: 600;
+      box-shadow: 0 6px 18px rgba(79,70,229,0.18);
+      position: relative;
+      overflow: hidden;
+      transition: box-shadow 0.3s ease, transform 0.2s ease;
+      min-width: 80px;
+    }
+    button:hover {
+      box-shadow: 0 8px 24px rgba(79,70,229,0.6), 0 0 10px #6ee7b7;
+      animation: pulseGlow 2.5s infinite;
+      transform: scale(1.02);
+    }
+    button:active { transform: scale(0.95); box-shadow: 0 4px 14px rgba(79,70,229,0.9); animation: none; }
+    @keyframes pulseGlow {
+      0%,100% { box-shadow: 0 8px 24px rgba(79,70,229,0.6), 0 0 10px #6ee7b7; }
+      50% { box-shadow: 0 12px 32px rgba(79,70,229,0.9), 0 0 20px #6ee7b7; }
+    }
+
+    /* Strength control */
+    .strength-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      width: 100%;
+    }
+    .strength-meter {
+      flex: 1 1 auto;
+      height: 12px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+    .strength-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #f87171, #fbbf24, #6ee7b7);
+      transition: width 220ms ease, background-color 220ms ease;
+    }
+    .strength-text {
+      min-width: 140px;
+      text-align: right;
+      font-weight: 600;
+      color: #a8b3cf;
+      font-size: 0.95rem;
+    }
+    .bits-text { font-weight: 400; font-size: 0.85rem; color:#9fb0d5; margin-top:6px; }
+
+    /* Results Styling */
+    .result {
+      margin-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 16px;
+      font-size: 16px;
+    }
+    .result h3 { margin-top: 0; font-size: 1.5rem; color: #6ee7b7; }
+    .result p { margin: 8px 0; }
+    .result .metric { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed rgba(255, 255, 255, 0.05); }
+    .metric span:first-child { font-weight: 300; color: #a8b3cf; }
+    .metric span:last-child { font-weight: 500; color: #e6eef8; }
+    .strength-indicator { font-weight: 700; padding: 4px 8px; border-radius: 4px; display: inline-block; margin-left: 10px; }
+    .weak { background-color: #f87171; color: #7f1d1d; }
+    .medium { background-color: #fbbf24; color: #78350f; }
+    .strong { background-color: #6ee7b7; color: #064e3b; }
+
+    /* Suggestion box */
+    .suggestions {
+      margin-top: 8px;
+      padding: 12px;
+      background: rgba(255,255,255,0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.03);
+      display: none; /* hidden by default */
+    }
+    .suggestions.visible { display: block; }
+    .suggestions h4 { margin: 0 0 8px 0; font-size: 0.95rem; color: #a8b3cf; }
+    .rule { display: flex; align-items: center; gap: 8px; padding: 6px 0; color: #9fb0d5; }
+    .rule .dot { width: 14px; height: 14px; border-radius: 3px; display: inline-block; text-align: center; line-height: 14px; font-weight: 700; }
+    .rule.pass { color: #d1fae5; }
+    .rule.pass .dot { background: #10b981; color: #032e1f; }
+    .rule.fail { color: #ffdada; }
+    .rule.fail .dot { background: #ef4444; color: #fff; }
+    .small { font-size: 0.85rem; color:#9fb0d5; margin-top:6px; }
+
+    @media (max-width: 520px) {
+      .strength-text { display: none; }
+      input[type="password"], input[type="text"] { flex-basis: 100%; }
+      button { flex-basis: auto; }
+    }
+  </style>
+</head>
+<body>
+
+  <main class="card" role="main" aria-labelledby="title">
+    <h1 id="title">Brute-Force Password Validator</h1>
+    <p class="lead">Type a password or hash. The analysis runs <strong>instantly and locally</strong> to estimate cracking time and security cost.</p>
+
+    <div class="row" role="form" aria-label="Password input area">
+      <input id="pwd" type="password" autocomplete="new-password" aria-label="password input" placeholder="Enter password or hash" />
+      <button id="checkBtn" aria-label="Check password">Analyze</button>
+      <button id="toggle" title="Show / hide password" aria-pressed="false">Show</button>
+      <button id="shareBtn" class="secondary" title="Download & open Google Drive to upload and share">Share (Google)</button>
+      <button id="genBtn" class="secondary" title="Generate a strong password">Generate</button>
+    </div>
+
+    <!-- Generated password area -->
+    <div id="genArea" style="display:none; width:100%; margin-top:8px;" class="row">
+      <input id="genPwd" type="text" readonly aria-label="generated password" />
+      <button id="copyGen" title="Copy generated password">Copy</button>
+    </div>
+
+    <!-- NEW: Strength control -->
+    <div class="strength-wrap" aria-live="polite" aria-atomic="true">
+      <div class="strength-meter" aria-hidden="false" aria-label="Password strength meter">
+        <div id="strengthFill" class="strength-fill" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></div>
+      </div>
+      <div>
+        <div id="strengthText" class="strength-text">No input</div>
+        <div id="bitsText" class="bits-text" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <!-- SUGGESTION BOX -->
+    <div id="suggestions" class="suggestions" aria-live="polite">
+      <h4>Suggestions to make your password stronger</h4>
+      <div id="rule-length" class="rule fail"><span class="dot">✕</span><span>At least <strong id="minChars">12</strong> characters</span></div>
+      <div id="rule-lower" class="rule fail"><span class="dot">✕</span><span>Lowercase letters (a–z)</span></div>
+      <div id="rule-upper" class="rule fail"><span class="dot">✕</span><span>Uppercase letters (A–Z)</span></div>
+      <div id="rule-number" class="rule fail"><span class="dot">✕</span><span>Numbers (0–9)</span></div>
+      <div id="rule-symbol" class="rule fail"><span class="dot">✕</span><span>Symbols (e.g. !@#$%)</span></div>
+      <div id="rule-repeat" class="rule fail"><span class="dot">✕</span><span>Avoid long repeated characters (e.g. \"aaaa\")</span></div>
+      <div class="small">These hints appear while you are typing. They help you meet a baseline for strong, brute-force-resistant secrets.</div>
+    </div>
+
+    <div class="result" id="result" aria-live="polite">
+      <p style="color:#a8b3cf;">Enter a value to see the security analysis.</p>
+    </div>
+  </main>
+
+  <!-- External scripts kept as-is -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.net.min.js"></script>
+
+  <script>
+    // run script after DOM ready to avoid null dereferences
+    document.addEventListener('DOMContentLoaded', () => {
+      // try to initialize VANTA (decorative) safely
+      try {
+        if (typeof VANTA !== 'undefined' && VANTA.NET) {
+          VANTA.NET({
+            el: "body",
+            mouseControls: true,
+            touchControls: true,
+            gyroControls: false,
+            minHeight: 200.00,
+            minWidth: 200.00,
+            scale: 1.00,
+            scaleMobile: 1.00,
+            color: 0x6ee7b7,
+            backgroundColor: 0x07102a
+          });
+        }
+      } catch (e) {
+        // decorative failure should not break the page
+      }
+
+      // DOM references (now safe)
+      const pwdInput = document.getElementById('pwd');
+      const toggle = document.getElementById('toggle');
+      const checkBtn = document.getElementById('checkBtn');
+      const resultDiv = document.getElementById('result');
+
+      const strengthFill = document.getElementById('strengthFill');
+      const strengthText = document.getElementById('strengthText');
+      const bitsText = document.getElementById('bitsText');
+
+      const suggestions = document.getElementById('suggestions');
+      const minCharsEl = document.getElementById('minChars');
+      const ruleLength = document.getElementById('rule-length');
+      const ruleLower = document.getElementById('rule-lower');
+      const ruleUpper = document.getElementById('rule-upper');
+      const ruleNumber = document.getElementById('rule-number');
+      const ruleSymbol = document.getElementById('rule-symbol');
+      const ruleRepeat = document.getElementById('rule-repeat');
+
+      const shareBtn = document.getElementById('shareBtn');
+      const genBtn = document.getElementById('genBtn');
+      const genArea = document.getElementById('genArea');
+      const genPwdEl = document.getElementById('genPwd');
+      const copyGen = document.getElementById('copyGen');
+
+      // defensive: ensure required elements exist
+      const critical = [pwdInput, toggle, checkBtn, resultDiv, strengthFill, strengthText, bitsText, suggestions, minCharsEl];
+      if (critical.some(el => !el)) {
+        console.error('Critical UI elements missing — script initialization aborted.');
+        return;
+      }
+
+      // --- Constants & helpers ---
+      const ATTACK_RATE_PER_SECOND = 1e10; // 10 billion attempts/sec
+      const GPU_HOURLY_COST = 0.50; // $0.50 / hour
+      const CHAR_SETS = { LOWER: 26, ALPHANUM: 62, COMPLEX: 95 };
+      const HASH_PATTERNS = {
+        "MD5": /^([a-fA-F0-9]{32})$/,
+        "SHA-1": /^([a-fA-F0-9]{40})$/,
+        "SHA-256": /^([a-fA-F0-9]{64})$/
+      };
+
+      function isLikelyHash(inputStr) {
+        for (const algo in HASH_PATTERNS) {
+          if (HASH_PATTERNS[algo].test(inputStr)) return algo;
+        }
+        return null;
+      }
+
+      function analyzeCharSet(secret) {
+        if (/[^a-zA-Z0-9\s]/.test(secret)) {
+          return { size: CHAR_SETS.COMPLEX, desc: "95 (Mixed Case, Digits, Symbols)" };
+        }
+        if (/[A-Z]/.test(secret) || /[0-9]/.test(secret)) {
+          return { size: CHAR_SETS.ALPHANUM, desc: "62 (Mixed Case, Digits)" };
+        }
+        return { size: CHAR_SETS.LOWER, desc: "26 (Lower Case Only)" };
+      }
+
+      // --- FIXED entropy calculation that penalizes repeats & trivial patterns ---
+      function estimateEntropyBits(secret) {
+        if (!secret) return 0;
+        const trimmed = secret.trim();
+        const words = trimmed.split(/\s+/);
+        if (words.length >= 2) return words.length * 11; // heuristic for passphrases
+
+        const { size: C } = analyzeCharSet(secret);
+
+        // Base: assume each character contributes log2(C) bits
+        const baseBitsPerChar = Math.log2(C);
+        let effectiveChars = secret.length;
+
+        // 1) Penalize long repeated runs: reduce effective length proportionally
+        // Count runs and apply diminishing returns penalty:
+        let runLen = 1;
+        let repeatPenalty = 0;
+        for (let i = 1; i < secret.length; i++) {
+          if (secret[i] === secret[i - 1]) {
+            runLen++;
+          } else {
+            if (runLen > 2) {
+              // each char beyond 2 in a run reduces effective length contribution
+              repeatPenalty += (runLen - 2) * 0.75;
+            }
+            runLen = 1;
+          }
+        }
+        if (runLen > 2) repeatPenalty += (runLen - 2) * 0.75;
+
+        // 2) Penalize very simple patterns: all same char or obvious sequences
+        const allSame = /^(.)\1+$/.test(secret);
+        const increasingSeq = /(?:0123|1234|2345|3456|4567|5678|6789)/.test(secret);
+        const alphaSeq = /(?:abcd|bcde|cdef|defg|efgh|fghi|ghij|hijk|ijkl|jklm|klmn|lmno|mnop|nopq|opqr|pqrs|qrst|rstu|stuv|tuvw|uvwx|vwxy|wxyz)/i.test(secret);
+
+        if (allSame) {
+          // almost no entropy if everything the same
+          effectiveChars *= 0.25;
+        } else if (increasingSeq || alphaSeq) {
+          effectiveChars *= 0.6;
+        }
+
+        // 3) Subtract repeat penalty but keep at least 1 char
+        effectiveChars = Math.max(1, effectiveChars - repeatPenalty);
+
+        // Final bits estimate
+        const bits = effectiveChars * baseBitsPerChar;
+
+        // Slight penalty for short strings even if mixed: treat <6 chars as weaker
+        if (secret.length < 6) {
+          return Math.max(0, bits * 0.6);
+        }
+        return bits;
+      }
+
+      function strengthCategoryFromBits(bits) {
+        if (bits < 28) return { label: 'Very weak', cls: 'weak', pct: Math.min(100, Math.round((bits / 28) * 25)) };
+        if (bits < 36) return { label: 'Weak', cls: 'weak', pct: Math.min(100, 25 + Math.round(((bits - 28) / (36 - 28)) * 15)) };
+        if (bits < 60) return { label: 'Moderate', cls: 'medium', pct: Math.min(100, 40 + Math.round(((bits - 36) / (60 - 36)) * 30)) };
+        if (bits < 128) return { label: 'Strong', cls: 'strong', pct: Math.min(100, 70 + Math.round(((bits - 60) / (128 - 60)) * 30)) };
+        return { label: 'Very strong', cls: 'strong', pct: 100 };
+      }
+
+      function formatKeyspace(length, charSetSize) {
+        // show exact small numbers and scientific for huge
+        const log10K = length * Math.log10(charSetSize);
+        if (log10K <= 21) {
+          // safe to compute exact keyspace for small exponents
+          const keyspace = BigInt(charSetSize) ** BigInt(length);
+          return keyspace.toLocaleString('en-US');
+        } else {
+          const mantissa = Math.pow(10, log10K - Math.floor(log10K));
+          const exponent = Math.floor(log10K);
+          return `${mantissa.toFixed(3)} × 10^${exponent}`;
+        }
+      }
+
+      function readableFromLog10Seconds(log10Seconds) {
+        // convert log10(seconds) into human readable string with rating
+        const MINUTE = 60, HOUR = 3600, DAY = 86400, YEAR = 31536000;
+        const log10Minute = Math.log10(MINUTE);
+        const log10Hour = Math.log10(HOUR);
+        const log10Day = Math.log10(DAY);
+        const log10Year = Math.log10(YEAR);
+
+        if (!isFinite(log10Seconds)) return { text: 'Impossible', rating: 'Strong', cls: 'strong' };
+
+        if (log10Seconds < Math.log10(1)) {
+          const seconds = Math.pow(10, log10Seconds);
+          return { text: `${seconds.toFixed(3)} seconds`, rating: 'Weak', cls: 'weak' };
+        }
+
+        if (log10Seconds < log10Hour) {
+          const value = Math.pow(10, log10Seconds - log10Minute);
+          return { text: `${value.toFixed(2)} minutes`, rating: 'Weak', cls: 'weak' };
+        } else if (log10Seconds < log10Day) {
+          const value = Math.pow(10, log10Seconds - log10Hour);
+          return { text: `${value.toFixed(2)} hours`, rating: 'Medium', cls: 'medium' };
+        } else if (log10Seconds < log10Year) {
+          const value = Math.pow(10, log10Seconds - log10Day);
+          return { text: `${value.toFixed(2)} days`, rating: 'Medium', cls: 'medium' };
+        } else {
+          const log10Years = log10Seconds - log10Year;
+          if (log10Years > 6) {
+            const mantissa = Math.pow(10, log10Years - Math.floor(log10Years));
+            const exponent = Math.floor(log10Years);
+            return { text: `${mantissa.toFixed(3)} × 10^${exponent} years`, rating: 'Strong', cls: 'strong' };
+          } else {
+            const years = Math.pow(10, log10Years);
+            return { text: `${years.toLocaleString('en', { maximumFractionDigits: 2 })} years`, rating: 'Strong', cls: 'strong' };
+          }
+        }
+      }
+
+      function estimateBruteForce(secret) {
+        const length = secret.length;
+        const { size: charSetSize, desc: charSetDesc } = analyzeCharSet(secret);
+        const log10Keyspace = length * Math.log10(charSetSize);
+        const log10AttackRate = Math.log10(ATTACK_RATE_PER_SECOND);
+        const log10Seconds = log10Keyspace - log10AttackRate;
+        const readable = readableFromLog10Seconds(log10Seconds);
+        const keyspaceDisplay = formatKeyspace(length, charSetSize);
+
+        const log10Hours = log10Seconds - Math.log10(3600);
+        let securityCost;
+        if (log10Hours < 15) {
+          const hours = Math.pow(10, log10Hours);
+          const cost = hours * GPU_HOURLY_COST;
+          securityCost = cost.toLocaleString('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
+        } else {
+          const log10Cost = log10Hours + Math.log10(GPU_HOURLY_COST);
+          const mantissa = Math.pow(10, log10Cost - Math.floor(log10Cost));
+          const exponent = Math.floor(log10Cost);
+          securityCost = `≈ ${mantissa.toFixed(3)} × 10^${exponent} USD`;
+        }
+
+        return {
+          length,
+          charSetDesc,
+          keyspaceDisplay,
+          timeReadable: readable.text,
+          ratingText: readable.rating,
+          ratingClass: readable.cls,
+          securityCost
+        };
+      }
+
+      // --- UI helpers ---
+      function updateStrengthUI(value) {
+        const bits = estimateEntropyBits(value);
+        const cat = strengthCategoryFromBits(bits);
+        strengthFill.style.width = cat.pct + '%';
+
+        if (cat.cls === 'weak') {
+          strengthFill.style.background = 'linear-gradient(90deg,#f87171,#fb923c)';
+        } else if (cat.cls === 'medium') {
+          strengthFill.style.background = 'linear-gradient(90deg,#fbbf24,#f97316)';
+        } else {
+          strengthFill.style.background = 'linear-gradient(90deg,#6ee7b7,#34d399)';
+        }
+
+        strengthText.textContent = value ? `${cat.label}` : 'No input';
+        bitsText.textContent = value ? `${Math.round(bits)} bits of entropy` : '';
+        bitsText.setAttribute('aria-hidden', value ? 'false' : 'true');
+        strengthFill.setAttribute('aria-valuenow', String(cat.pct));
+      }
+
+      // suggestion logic
+      const MIN_CHARS = 12;
+      minCharsEl.textContent = MIN_CHARS;
+
+      function hasRepeatedRun(s, runLen = 4) {
+        const pattern = new RegExp('(.)\\1{' + (runLen - 1) + ',}');
+        return pattern.test(s);
+      }
+
+      function updateSuggestions(value) {
+        const list = [ruleLength, ruleLower, ruleUpper, ruleNumber, ruleSymbol, ruleRepeat];
+        if (!value) {
+          list.forEach(el => {
+            if (!el) return;
+            el.classList.remove('pass'); el.classList.add('fail');
+            const dot = el.querySelector('.dot'); if (dot) dot.textContent = '✕';
+          });
+          return;
+        }
+
+        const passLength = value.length >= MIN_CHARS;
+        const passLower = /[a-z]/.test(value);
+        const passUpper = /[A-Z]/.test(value);
+        const passNumber = /[0-9]/.test(value);
+        const passSymbol = /[^a-zA-Z0-9\s]/.test(value);
+        const passRepeat = !hasRepeatedRun(value, 4);
+
+        const mapping = [
+          [ruleLength, passLength],
+          [ruleLower, passLower],
+          [ruleUpper, passUpper],
+          [ruleNumber, passNumber],
+          [ruleSymbol, passSymbol],
+          [ruleRepeat, passRepeat]
+        ];
+
+        mapping.forEach(([el, ok]) => {
+          if (!el) return;
+          if (ok) {
+            el.classList.remove('fail'); el.classList.add('pass');
+            const d = el.querySelector('.dot'); if (d) d.textContent = '✓';
+          } else {
+            el.classList.remove('pass'); el.classList.add('fail');
+            const d = el.querySelector('.dot'); if (d) d.textContent = '✕';
+          }
+        });
+      }
+
+      // --- main flows ---
+      checkBtn.addEventListener('click', () => {
+        const inputVal = (pwdInput.value || '').trim();
+        resultDiv.innerHTML = '';
+        checkBtn.textContent = 'Analyzing...';
+        checkBtn.disabled = true;
+        checkBtn.setAttribute('aria-busy', 'true');
+
+        updateStrengthUI(inputVal);
+        updateSuggestions(inputVal);
+
+        if (!inputVal) {
+          resultDiv.innerHTML = '<p style="color:#f97316;">Please enter a value to analyze.</p>';
+          checkBtn.textContent = 'Analyze';
+          checkBtn.disabled = false;
+          checkBtn.removeAttribute('aria-busy');
+          return;
+        }
+
+        const hashType = isLikelyHash(inputVal);
+
+        if (hashType) {
+          resultDiv.innerHTML = `
+            <h3 style="color:#ef4444;">🚨 HASH DETECTED: Possibly a ${hashType} hash</h3>
+            <p>This input matches the format of a <strong>${hashType}</strong> hash. Hashes are the output of one-way functions. If you intended to test a password, try typing the original password instead.</p>
+            <div class="metric"><span>Format Identified:</span><span>${hashType}</span></div>
+            <div class="metric"><span>Input Length:</span><span>${inputVal.length} characters</span></div>
+          `;
+        } else {
+          const analysis = estimateBruteForce(inputVal);
+          resultDiv.innerHTML = `
+            <h3 style="color:#6ee7b7;">🔒 SECRET ANALYSIS COMPLETE</h3>
+            <div class="metric">
+              <span>Brute-Force Strength:</span>
+              <span>${analysis.ratingText} <span class="strength-indicator ${analysis.ratingClass}">${analysis.ratingText}</span></span>
+            </div>
+            <div class="metric"><span>Estimated Crack Time:</span><span style="font-size:1.2em; font-weight:700;">${analysis.timeReadable}</span></div>
+            <hr style="border-color: rgba(255, 255, 255, 0.05); margin: 15px 0;">
+            <div class="metric"><span>Secret Length:</span><span>${analysis.length} characters</span></div>
+            <div class="metric"><span>Character Set Size (C):</span><span>${analysis.charSetDesc}</span></div>
+            <div class="metric"><span>Total Keyspace (K):</span><span>${analysis.keyspaceDisplay} combinations</span></div>
+            <div class="metric"><span>Theoretical Attacker Cost:</span><span style="color:#6ee7b7;">${analysis.securityCost}</span></div>
+          `;
+        }
+
+        checkBtn.textContent = 'Analyze';
+        checkBtn.disabled = false;
+        checkBtn.removeAttribute('aria-busy');
+      });
+
+      pwdInput.addEventListener('input', (e) => {
+        const val = (e.target.value || '');
+        updateStrengthUI(val);
+        updateSuggestions(val);
+        if (val) suggestions.classList.add('visible');
+        else if (document.activeElement !== pwdInput) suggestions.classList.remove('visible');
+      });
+
+      pwdInput.addEventListener('focus', () => {
+        suggestions.classList.add('visible');
+        updateSuggestions(pwdInput.value || '');
+      });
+      pwdInput.addEventListener('blur', () => {
+        if (!pwdInput.value) suggestions.classList.remove('visible');
+      });
+
+      toggle.addEventListener('click', () => {
+        const isHidden = pwdInput.type === 'password';
+        pwdInput.type = isHidden ? 'text' : 'password';
+        toggle.textContent = isHidden ? 'Hide' : 'Show';
+        toggle.setAttribute('aria-pressed', String(isHidden));
+      });
+
+      // generator
+      function generatePassword(length = 16) {
+        const lower = 'abcdefghijklmnopqrstuvwxyz';
+        const upper = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const digits = '0123456789';
+        const symbols = '!@#$%^&*()-_=+[]{}|;:,.<>?/~`';
+        let pwd = '';
+        // ensure at least one of each category
+        pwd += lower[Math.floor(Math.random() * lower.length)];
+        pwd += upper[Math.floor(Math.random() * upper.length)];
+        pwd += digits[Math.floor(Math.random() * digits.length)];
+        pwd += symbols[Math.floor(Math.random() * symbols.length)];
+        const all = lower + upper + digits + symbols;
+        while (pwd.length < length) pwd += all[Math.floor(Math.random() * all.length)];
+        return pwd.split('').sort(() => 0.5 - Math.random()).join('');
+      }
+
+      genBtn.addEventListener('click', () => {
+        const pwd = generatePassword(16);
+        genPwdEl.value = pwd;
+        genArea.style.display = 'flex';
+        pwdInput.value = pwd;
+        updateStrengthUI(pwd);
+        updateSuggestions(pwd);
+        pwdInput.focus();
+        pwdInput.setSelectionRange(0, pwd.length);
+      });
+
+      copyGen && copyGen.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(genPwdEl.value || '');
+          copyGen.textContent = 'Copied!';
+          setTimeout(() => copyGen.textContent = 'Copy', 1500);
+        } catch (err) {
+          genPwdEl.select();
+          document.execCommand('copy');
+        }
+      });
+
+      // share: download HTML file & open Google Drive
+      shareBtn && shareBtn.addEventListener('click', () => {
+        const docHtml = '<!doctype html>\\n' + document.documentElement.outerHTML;
+        const blob = new Blob([docHtml], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'password-validator.html';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 15000);
+        window.open('https://drive.google.com/drive/my-drive', '_blank');
+      });
+
+      // run automatically if input present on load
+      if ((pwdInput.value || '').trim()) {
+        updateStrengthUI(pwdInput.value.trim());
+        updateSuggestions(pwdInput.value.trim());
+        checkBtn.click();
+      }
+    }); // DOMContentLoaded end
+  </script>
+</body>
+</html>
